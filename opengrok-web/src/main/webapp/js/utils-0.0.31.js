@@ -1351,7 +1351,7 @@ function init_results_autohide() {
 
 function init_searchable_option_list() {
     function init_sol_on_type_combobox() {
-        var $type = $('#type');
+        /*var $type = $('#type');
         if ($type.length === 0) {
             return;
         }
@@ -1360,7 +1360,7 @@ function init_searchable_option_list() {
          * takes the original long &lt;select&gt; box and the max-height
          * does not work then.
          */
-        $type.searchableOptionList({
+        /*$type.searchableOptionList({
             texts: {
                 searchplaceholder: 'Click here to restrict the file type'
             },
@@ -1368,8 +1368,8 @@ function init_searchable_option_list() {
             /**
              * Defined in menu.jsp just next to the original &lt;select&gt;
              */
-            resultsContainer: $("#type-select-container")
-        });
+            /*resultsContainer: $("#type-select-container")
+        });*/
     }
     var searchableOptionListOptions = {
         maxHeight: '300px',

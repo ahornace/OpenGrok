@@ -73,151 +73,127 @@ document.domReady.push(function() { domReadyMenu(); });
 </script>
 <form action="<%= request.getContextPath() %>/search" id="sbox" onsubmit="searchSubmit(this)">
 <div id="qtbl">
-    <table>
     <%
-    if (projects.size() != 0) {
+        if (projects.size() != 0) {
     %>
-    <tbody id="ptbl">
-    <tr>
-    <td id="projectLabelTd">
-    <label for="project">Project(s)</label>
-    </td>
-    <td colspan="2">
-    <select tabindex="8" class="q" id="project"
-        name="project" multiple="multiple" size="<%=
+            <label for="project">Project(s)</label>
+            <select class="q" id="project"
+                    name="project" multiple="multiple" size="<%=
         Math.min(15, projectsSize) %>"><%
-        SortedSet<String> pRequested = new TreeSet<>(cfg.getRequestedProjects());
-        for (Group group : ph.getGroups()) {
-            Set<Project> groupProjects = ph.getAllGrouped(group);
-            if (groupProjects.size() > 0) {
-                %><optgroup label="<%= group.getName() %>"><%
+                SortedSet<String> pRequested = new TreeSet<>(cfg.getRequestedProjects());
+                for (Group group : ph.getGroups()) {
+                    Set<Project> groupProjects = ph.getAllGrouped(group);
+                    if (groupProjects.size() > 0) {
+            %><optgroup label="<%= group.getName() %>"><%
                 for (Project p : groupProjects) {
                     if (!p.isIndexed()) {
                         continue;
                     }
 
-                // TODO below "selected" has no effect if one refreshes the page
-                // with F5
+                    // TODO below "selected" has no effect if one refreshes the page
+                    // with F5
 
-                %><option value="<%= p.getName() %>"<%
-                    if (pRequested.contains(p.getName())) {
-                        %> selected="selected"<%
-                        pRequested.remove(p.getName());
-                    }
-                    if (!(messages = MessagesUtils.messagesToJson(p)).isEmpty()) {
-                        %> data-messages='<%= messages %>' <%
-                    }
-                    %>><%= Util.formQuoteEscape(p.getName()) %></option><%
+            %><option value="<%= p.getName() %>"<%
+                if (pRequested.contains(p.getName())) {
+            %> selected="selected"<%
+                    pRequested.remove(p.getName());
                 }
-                %></optgroup><%
-            }
-        }
-
-        // Handle projects not listed in any group.
-        if (ph.getGroups().size() > 0 && ph.getAllUngrouped().size() > 0) {
-            %><optgroup label="Other"><%
-        }
-        for (Project p : ph.getAllUngrouped()) {
-            if (!p.isIndexed()) {
-                continue;
-            }
-
-        %><option value="<%= p.getName() %>"<%
-            if (pRequested.contains(p.getName())) {
-                %> selected="selected"<%
-                pRequested.remove(p.getName());
-            }
-            if (!(messages = MessagesUtils.messagesToJson(p)).isEmpty()) {
-                %> data-messages='<%= messages %>' <%
-            }
+                if (!(messages = MessagesUtils.messagesToJson(p)).isEmpty()) {
+            %> data-messages='<%= messages %>' <%
+                }
             %>><%= Util.formQuoteEscape(p.getName()) %></option><%
-        }
-        if (ph.getGroups().size() > 0 && ph.getAllUngrouped().size() > 0) {
+                }
             %></optgroup><%
-        }
-    %></select>
-    </td>
-    </tr>
-    <tr>
-    <td colspan="3" >
-    <button tabindex="6" type="button"
-        onclick="javascript: selectAllProjects(); return false;"
-        >select all</button>
-    &nbsp;
-    <button tabindex="7" type="button"
-        onclick="javascript: invertAllProjects(); return false;"
-        >invert selection</button>
-    &nbsp;
-    <button tabindex="8" type="button"
-        onclick="javascript: deselectAllProjects(); return false;"
-        >clear</button>
-    </td>
-    </tr>
-    </tbody>
+                    }
+                }
+
+                // Handle projects not listed in any group.
+                if (ph.getGroups().size() > 0 && ph.getAllUngrouped().size() > 0) {
+            %><optgroup label="Other"><%
+                }
+                for (Project p : ph.getAllUngrouped()) {
+                    if (!p.isIndexed()) {
+                        continue;
+                    }
+
+            %><option value="<%= p.getName() %>"<%
+                if (pRequested.contains(p.getName())) {
+            %> selected="selected"<%
+                    pRequested.remove(p.getName());
+                }
+                if (!(messages = MessagesUtils.messagesToJson(p)).isEmpty()) {
+            %> data-messages='<%= messages %>' <%
+                }
+            %>><%= Util.formQuoteEscape(p.getName()) %></option><%
+                }
+                if (ph.getGroups().size() > 0 && ph.getAllUngrouped().size() > 0) {
+            %></optgroup><%
+                }
+            %></select>
     <%
-    }
+        }
     %>
-    <tbody>
-    <tr>
-        <td><label for="full" title="The text token(s) or other fields to be found (lucene query, this is not full text!)">Full&nbsp;Search</label></td>
-        <td colspan="2"><input tabindex="1" class="q" name="full" id="full" type="text" value="<%=
-                Util.formQuoteEscape(queryParams.getFreetext()) %>"/></td>
-    </tr>
-    <tr>
-        <td><label for="defs" title="Definition of function/variable/class">Definition</label></td>
-        <td colspan="2"><input class="q" tabindex="2" name="defs" id="defs" type="text" value="<%=
-            Util.formQuoteEscape(queryParams.getDefs()) %>"/></td>
-    </tr>
-    <tr>
-        <td><label for="refs" title="Usage of function/variable/class">Symbol</label></td>
-        <td colspan="2"><input class="q" tabindex="3" name="refs" id="refs" type="text" value="<%=
-            Util.formQuoteEscape(queryParams.getRefs()) %>"/></td>
-    </tr>
-    <tr>
-        <td><label for="path" title="path or parts of it, no need to use dividers">File&nbsp;Path</label></td>
-        <td colspan="2"><input class="q" tabindex="4" name="path" id="path" type="text" value="<%=
-            Util.formQuoteEscape(queryParams.getPath()) %>"/></td>
-    </tr>
+
+    <div>
+        <button type="button" class="btn btn-secondary" onclick="javascript: selectAllProjects(); return false;">Select All</button>
+        <button type="button" class="btn btn-secondary" onclick="javascript: invertAllProjects(); return false;">Invert Selection</button>
+        <button type="button" class="btn btn-secondary" onclick="javascript: deselectAllProjects(); return false;">Clear</button>
+    </div>
+    <div class="form-group form-inline">
+        <label for="full" title="The text token(s) or other fields to be found (lucene query, this is not full text!)">Full&nbsp;Search</label>
+        <input name="full" id="full" type="text" value="<%=
+                Util.formQuoteEscape(queryParams.getFreetext()) %>"/>
+    </div>
+    <div class="form-group form-inline">
+        <label for="defs" title="Definition of function/variable/class">Definition</label>
+        <input name="defs" id="defs" type="text" value="<%=
+            Util.formQuoteEscape(queryParams.getDefs()) %>"/>
+    </div>
+
+    <div class="form-group form-inline">
+        <label for="refs" title="Usage of function/variable/class">Symbol</label>
+        <input name="refs" id="refs" type="text" value="<%=
+            Util.formQuoteEscape(queryParams.getRefs()) %>"/>
+    </div>
+
+    <div class="form-group form-inline">
+        <label for="path" title="path or parts of it, no need to use dividers">File&nbsp;Path</label>
+        <input name="path" id="path" type="text" value="<%=
+            Util.formQuoteEscape(queryParams.getPath()) %>"/>
+    </div>
+
     <%
         if (cfg.getEnv().isHistoryEnabled()) {
     %>
-    <tr>
-        <td><label for="hist" title="Search in log messages">History</label></td>
-        <td colspan="2"><input class="q" tabindex="5" name="hist" id="hist" type="text" value="<%=
-            Util.formQuoteEscape(queryParams.getHist()) %>"/></td>
-    </tr>
+        <div class="form-group form-inline">
+            <label for="hist" title="Search in log messages">History</label>
+        <input name="hist" id="hist" type="text" value="<%=
+            Util.formQuoteEscape(queryParams.getHist()) %>"/>
+        </div>
     <%
         }
     %>
-    <tr>
-        <td id="typeLabelTd"><label for="type">Type</label></td>
-        <td><select class="q" tabindex="6" name="type" id="type"><%
-                String selection = queryParams.getType();
-                %>
-                <option value="">Any</option><%
+    <div class="form-group form-inline">
+        <label for="type">Type</label>
+        <select class="custom-select" name="type" id="type"><%
+            String selection = queryParams.getType();
+        %>
+            <option value="" selected>Any</option><%
                 for (Map.Entry<String, String> d : SearchHelper.getFileTypeDescriptions()) {
-                    %>
-                <option value="<%= Util.formQuoteEscape(d.getKey()) %>"<%
-                    if (d.getKey().equals(selection)) {
-                        %> selected="selected"<%
-                    }
-                    %>><%= Util.htmlize(d.getValue()) %></option><%
+            %>
+            <option value="<%= Util.formQuoteEscape(d.getKey()) %>"<%
+                if (d.getKey().equals(selection)) {
+            %> selected="selected"<%
+                }
+            %>><%= Util.htmlize(d.getValue()) %></option><%
                 }
             %>
-            </select>
-        </td>
-        <td id="type-select-container">
-            <!-- filled with javascript -->
-        </td>
-    </tr>
-    </tbody>
-</table>
+        </select>
+    </div>
 <div id="form-controls">
-    <input tabindex="9" class="submit btn" type="submit" value="Search"/>
-    <input tabindex="10" class="submit btn" onclick="javascript: clearSearchFrom();"
-           type="button" value="Clear"/>
-    <input tabindex="11" class="submit btn" onclick="window.open('help.jsp', '_blank');"
-           type="button" value="Help"/>
+    <button type="submit" class="btn btn-primary">Search</button>
+    <button type="button" class="btn btn-secondary" onclick="javascript: clearSearchFrom();">Clear</button>
+    <button type="button" class="btn btn-secondary" onclick="window.open('help.jsp', '_blank');">Help</button>
 </div>
 </div>
 <div id="ltbl">

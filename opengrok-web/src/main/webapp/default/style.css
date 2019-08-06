@@ -4,6 +4,8 @@ body {
     color: black;
     font-family: sans-serif;
     margin: 0;
+    line-height: normal;
+    font-size: 1em;
 }
 
 a {
@@ -65,7 +67,7 @@ tbody:not(.search-result) tr:nth-child(EVEN) {
     background-color: #e8e8f0;
 }
 
-.btn {
+/*.btn {
     padding-left: 7px;
     padding-right: 7px;
     text-align: center;
@@ -86,7 +88,7 @@ input, button, .btn {
     border-radius: 0.75ex;
     -moz-border-radius: 0.75ex;
     background-color: #a3b8cb;
-}
+}*/
 
 /* below seems to be a problem for input boxes, where the color will overwrite
  * the text inside, let's leave it for buttons though for search and clear
@@ -1278,7 +1280,7 @@ h6.message-group-caption {
 
 /** --------------- sol workaround ------------ */
 
-select#project, select#type {
+select#project {
     height: 20px;
     width: 30px;
     visibility: hidden;

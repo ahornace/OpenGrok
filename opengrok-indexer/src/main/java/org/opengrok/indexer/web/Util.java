@@ -1408,6 +1408,9 @@ public final class Util {
             int myFirstPage = startingResult < 0 ? 1 : startingResult / limit + 1;
             int myLastPage = Math.min(lastPage, myFirstPage + 10 + (myFirstPage == 1 ? 0 : 1));
 
+            buf.append("<nav aria-label=\"Page navigation example\">\n" +
+                    "  <ul class=\"pagination\">");
+
             // function taking the page number and appending the desired content into the final buffer
             Function<Integer, Void> generatePageLink = new Function<Integer, Void>() {
                 @Override
@@ -1415,9 +1418,10 @@ public final class Util {
                     int myOffset = Math.max(0, (page - 1) * limit);
                     if (myOffset <= offset && offset < myOffset + limit) {
                         // do not generate anchor for current page
-                        buf.append("<span class=\"sel\">").append(page).append("</span>");
+                        buf.append("<li class=\"page-item active\" aria-current=\"page\"><a class=\"page-link\" href=\"#\">")
+                                .append(page).append("</a></li>");
                     } else {
-                        buf.append("<a class=\"more\" href=\"?");
+                        buf.append("<li class=\"page-item\"><a class=\"page-link\" href=\"?");
                         // append request parameters
                         if (request != null && request.getQueryString() != null) {
                             String query = request.getQueryString();
@@ -1436,13 +1440,13 @@ public final class Util {
                         buf.append("\">");
                         // add << or >> if this link would lead to another section
                         if (page == myFirstPage && page != 1) {
-                            buf.append("&lt;&lt");
+                            buf.append("<span aria-hidden=\"true\">&laquo;</span>");
                         } else if (page == myLastPage && myOffset + limit < size) {
-                            buf.append("&gt;&gt;");
+                            buf.append("<span aria-hidden=\"true\">&raquo;</span>");
                         } else {
                             buf.append(page);
                         }
-                        buf.append("</a>");
+                        buf.append("</a></li>");
                     }
                     return null;
                 }
@@ -1451,15 +1455,23 @@ public final class Util {
             // slider composition
             if (myFirstPage != 1) {
                 generatePageLink.apply(1);
-                buf.append("<span>...</span>");
+                buf.append("<li class=\"page-item disabled\">\n" +
+                        "      <span class=\"page-link\">...</span>\n" +
+                        "    </li>");
             }
             for (int page = myFirstPage; page <= myLastPage; page++) {
                 generatePageLink.apply(page);
             }
             if (myLastPage != lastPage) {
-                buf.append("<span>...</span>");
+                buf.append("<li class=\"page-item disabled\">\n" +
+                        "      <span class=\"page-link\">...</span>\n" +
+                        "    </li>");
                 generatePageLink.apply(lastPage);
             }
+
+            buf.append("  </ul>\n" +
+                    "</nav>");
+
             return buf.toString();
         }
         return slider;
