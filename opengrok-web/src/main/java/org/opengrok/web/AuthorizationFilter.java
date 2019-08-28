@@ -33,14 +33,26 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
+import org.opengrok.indexer.Metrics;
 import org.opengrok.indexer.configuration.Project;
 import org.opengrok.indexer.logger.LoggerFactory;
 import org.opengrok.indexer.web.PageConfig;
 import org.opengrok.web.api.v1.RestApp;
 
+import static com.codahale.metrics.MetricRegistry.name;
+
 public class AuthorizationFilter implements Filter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthorizationFilter.class);
+
+    private final Meter requests = Metrics.getInstance().meter(Metrics.REQUESTS);
+    //private final Counter requestsForbidden = Metrics.getInstance().counter("requests_forbidden");
+    private final Timer requestsForbidden = Metrics.getInstance().timer(
+            name(AuthorizationFilter.class, "requests_forbidden"));
 
     @Override
     public void init(FilterConfig fc) throws ServletException {
@@ -62,38 +74,39 @@ public class AuthorizationFilter implements Filter {
         }
 
         PageConfig config = PageConfig.get(httpReq);
-        long processTime = System.currentTimeMillis();
 
-        Project p = config.getProject();
-        if (p != null && !config.isAllowed(p)) {
-            if (httpReq.getRemoteUser() != null) {
-                LOGGER.log(Level.INFO, "Access denied for user ''{0}'' for URI: {1}",
-                        new Object[]{httpReq.getRemoteUser(),
-                            httpReq.getRequestURI()});
-            } else {
-                LOGGER.log(Level.INFO, "Access denied for URI: {0}", httpReq.getRequestURI());
-            }
+        Timer.Context context = requestsForbidden.time();
+        try {
+            Project p = config.getProject();
+            if (p != null && !config.isAllowed(p)) {
+                if (httpReq.getRemoteUser() != null) {
+                    LOGGER.log(Level.INFO, "Access denied for user ''{0}'' for URI: {1}",
+                            new Object[]{httpReq.getRemoteUser(),
+                                    httpReq.getRequestURI()});
+                } else {
+                    LOGGER.log(Level.INFO, "Access denied for URI: {0}", httpReq.getRequestURI());
+                }
 
-            /*
-             * Add the request to the statistics. This is called just once for a
-             * single request otherwise the next filter will count the same
-             * request twice ({@link StatisticsFilter#collectStats}).
-             *
-             * In this branch of the if statement the filter processing stopped
-             * and does not follow to the StatisticsFilter.
-             */
-            config.getEnv().getStatistics().addRequest();
-            config.getEnv().getStatistics().addRequest("requests_forbidden");
-            config.getEnv().getStatistics().addRequestTime("requests_forbidden",
-                    System.currentTimeMillis() - processTime);
+                /*
+                 * Add the request to the statistics. This is called just once for a
+                 * single request otherwise the next filter will count the same
+                 * request twice ({@link StatisticsFilter#collectStats}).
+                 *
+                 * In this branch of the if statement the filter processing stopped
+                 * and does not follow to the StatisticsFilter.
+                 */
+                requests.mark();
 
-            if (!config.getEnv().getIncludeFiles().getForbiddenIncludeFileContent(false).isEmpty()) {
-                sr.getRequestDispatcher("/eforbidden").forward(sr, sr1);
+                if (!config.getEnv().getIncludeFiles().getForbiddenIncludeFileContent(false).isEmpty()) {
+                    sr.getRequestDispatcher("/eforbidden").forward(sr, sr1);
+                    return;
+                }
+
+                httpRes.sendError(HttpServletResponse.SC_FORBIDDEN, "Access forbidden");
                 return;
             }
-
-            httpRes.sendError(HttpServletResponse.SC_FORBIDDEN, "Access forbidden");
-            return;
+        } finally {
+            context.stop();
         }
         fc.doFilter(sr, sr1);
     }

@@ -32,6 +32,9 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import com.codahale.metrics.Meter;
+import org.opengrok.indexer.Metrics;
 import org.opengrok.indexer.logger.LoggerFactory;
 import org.opengrok.indexer.web.PageConfig;
 import org.opengrok.indexer.web.Prefix;
@@ -40,8 +43,9 @@ import org.opengrok.indexer.web.Statistics;
 
 public class StatisticsFilter implements Filter {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(StatisticsFilter.class);
     private static final String TIME_ATTRIBUTE = "statistics_time_start";
+
+    private final Meter requests = Metrics.getInstance().meter(Metrics.REQUESTS);
 
     @Override
     public void init(FilterConfig fc) throws ServletException {
@@ -77,7 +81,7 @@ public class StatisticsFilter implements Filter {
          * Add the request to the statistics. Be aware of the colliding call in
          * {@code AuthorizationFilter#doFilter}.
          */
-        stats.addRequest();
+        requests.mark();
 
         if ((o = config.getRequestAttribute(TIME_ATTRIBUTE)) != null) {
             processTime = System.currentTimeMillis() - (long) o;

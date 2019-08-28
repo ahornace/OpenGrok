@@ -30,6 +30,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
+import org.opengrok.indexer.Metrics;
 import org.opengrok.indexer.configuration.Configuration;
 import org.opengrok.indexer.configuration.Group;
 import org.opengrok.indexer.configuration.Nameable;
@@ -39,6 +43,8 @@ import org.opengrok.indexer.framework.PluginFramework;
 import org.opengrok.indexer.logger.LoggerFactory;
 import org.opengrok.indexer.web.Statistics;
 
+import static com.codahale.metrics.MetricRegistry.name;
+
 /**
  * Placeholder for performing authorization checks.
  *
@@ -47,6 +53,13 @@ import org.opengrok.indexer.web.Statistics;
 public final class AuthorizationFramework extends PluginFramework<IAuthorizationPlugin> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthorizationFramework.class);
+
+    private final Counter authStackReloadCounter = Metrics.getInstance().counter("authorization_stack_reload");
+    private final Counter authCacheHits = Metrics.getInstance().counter("authorization_cache_hits");
+    private final Counter authCacheMisses = Metrics.getInstance().counter("authorization_cache_misses");
+    private final Counter authSessionsInvalidated = Metrics.getInstance().counter("authorization_sessions_invalidated");
+
+    private final Timer authTimer = Metrics.getInstance().timer(name(AuthorizationFramework.class, "authorization"));
 
     /**
      * Stack of available plugins/stacks in the order of the execution.
@@ -375,8 +388,7 @@ public final class AuthorizationFramework extends PluginFramework<IAuthorization
             lock.writeLock().unlock();
         }
 
-        Statistics stats = RuntimeEnvironment.getInstance().getStatistics();
-        stats.addRequest("authorization_stack_reload");
+        authStackReloadCounter.inc();
 
         // clean the old stack
         removeAll(oldStack);
@@ -497,11 +509,11 @@ public final class AuthorizationFramework extends PluginFramework<IAuthorization
             m = new TreeMap<>();
         } else if ((val = m.get(entity.getName())) != null) {
             // cache hit
-            stats.addRequest("authorization_cache_hits");
+            authCacheHits.inc();
             return val;
         }
 
-        stats.addRequest("authorization_cache_misses");
+        authCacheMisses.inc();
 
         long time = 0;
         boolean overallDecision = false;
@@ -512,21 +524,27 @@ public final class AuthorizationFramework extends PluginFramework<IAuthorization
             HttpSession session;
             if (((session = request.getSession(false)) != null) && isSessionInvalid(session)) {
                 session.invalidate();
-                stats.addRequest("authorization_sessions_invalidated");
+                authSessionsInvalidated.inc();
             }
             request.getSession().setAttribute(SESSION_VERSION, getPluginVersion());
 
             time = System.currentTimeMillis();
 
-            overallDecision = performCheck(entity, pluginPredicate, skippingPredicate);
+            Timer.Context context = authTimer.time();
+            try {
+                overallDecision = performCheck(entity, pluginPredicate, skippingPredicate);
+            } finally {
+                context.stop();
+            }
         } finally {
             lock.readLock().unlock();
         }
 
+        Metrics.getInstance().
+
         if (time > 0) {
             time = System.currentTimeMillis() - time;
 
-            stats.addRequestTime("authorization", time);
             stats.addRequestTime(
                     String.format("authorization_%s", overallDecision ? "positive" : "negative"),
                     time);

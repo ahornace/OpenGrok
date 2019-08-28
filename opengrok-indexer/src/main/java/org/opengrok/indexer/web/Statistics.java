@@ -86,27 +86,6 @@ public class Statistics {
     private long timeStart = System.currentTimeMillis();
 
     /**
-     * Adds a single request into all requests.
-     */
-    public synchronized void addRequest() {
-        maybeRefresh();
-
-        requestsPerMinute++;
-        requests++;
-        requestsPerMinuteAvg = requests / (double) minutes;
-
-        if (requestsPerMinute > requestsPerMinuteMax) {
-            requestsPerMinuteMax = requestsPerMinute;
-        }
-        if (requestsPerMinute < requestsPerMinuteMin) {
-            requestsPerMinuteMin = requestsPerMinute;
-        }
-
-        dayHistogram[Calendar.getInstance().get(Calendar.HOUR_OF_DAY)]++;
-        monthHistogram[Calendar.getInstance().get(Calendar.DAY_OF_MONTH) - 1]++;
-    }
-
-    /**
      * Refreshes the last timestamp and number of minutes since start if needed.
      */
     protected synchronized void maybeRefresh() {
