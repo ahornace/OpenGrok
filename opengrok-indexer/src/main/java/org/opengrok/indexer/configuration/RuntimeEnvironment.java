@@ -74,7 +74,6 @@ import org.opengrok.indexer.util.ForbiddenSymlinkException;
 import org.opengrok.indexer.util.LazilyInstantiate;
 import org.opengrok.indexer.util.PathUtils;
 import org.opengrok.indexer.web.Prefix;
-import org.opengrok.indexer.web.Statistics;
 import org.opengrok.indexer.web.Util;
 import org.opengrok.indexer.web.messages.Message;
 import org.opengrok.indexer.web.messages.MessagesContainer;
@@ -101,7 +100,6 @@ public final class RuntimeEnvironment {
     private final Map<String, SearcherManager> searcherManagerMap = new ConcurrentHashMap<>();
 
     private String configURI;
-    private Statistics statistics = new Statistics();
     public IncludeFiles includeFiles = new IncludeFiles();
     private final MessagesContainer messagesContainer = new MessagesContainer();
 
@@ -331,14 +329,6 @@ public final class RuntimeEnvironment {
 
     public void setCtagsTimeout(long timeout) {
         setConfigurationValue("ctagsTimeout", timeout);
-    }
-    
-    public Statistics getStatistics() {
-        return statistics;
-    }
-
-    public void setStatistics(Statistics statistics) {
-        this.statistics = statistics;
     }
 
     public void setLastEditedDisplayMode(boolean lastEditedDisplayMode) {

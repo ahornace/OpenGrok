@@ -22,6 +22,7 @@
  */
 package org.opengrok.web.api.v1.controller;
 
+import com.codahale.metrics.annotation.Timed;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
@@ -98,6 +99,7 @@ public final class SuggesterController {
     @GET
     @Authorized
     @CorsEnable
+    @Timed
     @Produces(MediaType.APPLICATION_JSON)
     public Result getSuggestions(@Valid @BeanParam final SuggesterQueryData data) throws ParseException {
         Instant start = Instant.now();

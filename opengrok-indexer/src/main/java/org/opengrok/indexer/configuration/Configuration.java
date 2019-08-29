@@ -18,7 +18,7 @@
  */
 
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2019, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright (c) 2017-2019, Chris Fraire <cfraire@me.com>.
  */
 package org.opengrok.indexer.configuration;
@@ -75,7 +75,6 @@ public final class Configuration {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Configuration.class);
     public static final String PLUGIN_DIRECTORY_DEFAULT = "plugins";
-    public static final String STATISTICS_FILE_DEFAULT = "statistics.json";
 
     /**
      * A check if a pattern contains at least one pair of parentheses meaning
@@ -214,7 +213,6 @@ public final class Configuration {
     private boolean scopesEnabled;
     private boolean projectsEnabled;
     private boolean foldingEnabled;
-    private String statisticsFilePath;
     /*
      * Set to false if we want to disable fetching history of individual files
      * (by running appropriate SCM command) when the history is not found
@@ -404,14 +402,6 @@ public final class Configuration {
         this.ctagsTimeout = timeout;
     }
 
-    public String getStatisticsFilePath() {
-        return statisticsFilePath;
-    }
-
-    public void setStatisticsFilePath(String statisticsFilePath) {
-        this.statisticsFilePath = statisticsFilePath;
-    }
-
     public boolean isLastEditedDisplayMode() {
         return lastEditedDisplayMode;
     }
@@ -497,7 +487,6 @@ public final class Configuration {
         setScanningDepth(defaultScanningDepth); // default depth of scanning for repositories
         setScopesEnabled(true);
         setSourceRoot(null);
-        setStatisticsFilePath(null);
         //setTabSize(4);
         setTagsEnabled(false);
         //setUserPage("http://www.myserver.org/viewProfile.jspa?username=");
@@ -821,20 +810,15 @@ public final class Configuration {
     /**
      * Sets data root.
      *
-     * This method also sets the pluginDirectory if it is not already set and
-     * also this method sets the statisticsFilePath if it is not already set
+     * This method also sets the pluginDirectory if it is not already set.
      *
      * @see #setPluginDirectory(java.lang.String)
-     * @see #setStatisticsFilePath(java.lang.String)
      *
      * @param dataRoot data root path
      */
     public void setDataRoot(String dataRoot) {
         if (dataRoot != null && getPluginDirectory() == null) {
             setPluginDirectory(dataRoot + "/../" + PLUGIN_DIRECTORY_DEFAULT);
-        }
-        if (dataRoot != null && getStatisticsFilePath() == null) {
-            setStatisticsFilePath(dataRoot + "/" + STATISTICS_FILE_DEFAULT);
         }
         this.dataRoot = dataRoot;
     }
