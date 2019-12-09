@@ -292,6 +292,8 @@ public final class Configuration {
      */
     private boolean navigateWindowEnabled;
 
+    private boolean graphiteEnabled;
+
     private SuggesterConfig suggesterConfig = new SuggesterConfig();
 
     /*
@@ -495,6 +497,9 @@ public final class Configuration {
         setUserPageSuffix("");
         setWebappLAF("default");
         // webappCtags is default(boolean)
+
+        String graphiteEnabledEnv = System.getenv("GRAPHITE_ENABLED");
+        setGraphiteEnabled(Boolean.parseBoolean(graphiteEnabledEnv));
     }
 
     public String getRepoCmd(String clazzName) {
@@ -1230,6 +1235,14 @@ public final class Configuration {
 
     public void setProjectsEnabled(boolean flag) {
         this.projectsEnabled = flag;
+    }
+
+    public boolean isGraphiteEnabled() {
+        return graphiteEnabled;
+    }
+
+    public void setGraphiteEnabled(boolean graphiteEnabled) {
+        this.graphiteEnabled = graphiteEnabled;
     }
 
     public SuggesterConfig getSuggesterConfig() {

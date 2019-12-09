@@ -197,7 +197,7 @@ Portions Copyright (c) 2017-2019, Chris Fraire <cfraire@me.com>.
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
-            <version>4.1.0</version>
+            <version>${dropwizard.metrics.version}</version>
         </dependency>
     </dependencies>
 

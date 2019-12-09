@@ -161,12 +161,17 @@ Portions Copyright (c) 2018, Chris Fraire <cfraire@me.com>.
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-jersey2</artifactId>
-            <version>4.1.0</version>
+            <version>${dropwizard.metrics.version}</version>
         </dependency>
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-servlets</artifactId>
-            <version>4.1.0</version>
+            <version>${dropwizard.metrics.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.dropwizard</groupId>
+            <artifactId>dropwizard-metrics-graphite</artifactId>
+            <version>1.3.17</version>
         </dependency>
     </dependencies>
 

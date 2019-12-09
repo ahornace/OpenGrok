@@ -71,6 +71,7 @@ Portions Copyright (c) 2018, Chris Fraire <cfraire@me.com>.
         <junit.version>5.4.2</junit.version>
         <maven-surefire.version>2.22.2</maven-surefire.version>
         <apache-commons-lang3.version>3.9</apache-commons-lang3.version>
+        <dropwizard.metrics.version>4.1.1</dropwizard.metrics.version>
     </properties>
 
     <dependencyManagement>

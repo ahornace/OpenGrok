@@ -23,7 +23,11 @@
  */
 package org.opengrok.web;
 
+import com.codahale.metrics.MetricFilter;
+import com.codahale.metrics.graphite.Graphite;
+import com.codahale.metrics.graphite.GraphiteReporter;
 import org.opengrok.indexer.Info;
+import org.opengrok.indexer.Metrics;
 import org.opengrok.indexer.analysis.AnalyzerGuru;
 import org.opengrok.indexer.authorization.AuthorizationFramework;
 import org.opengrok.indexer.configuration.RuntimeEnvironment;
@@ -39,6 +43,8 @@ import javax.servlet.ServletRequestEvent;
 import javax.servlet.ServletRequestListener;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -74,7 +80,19 @@ public final class WebappListener
             }
         }
 
-        /*
+        if ((boolean) env.getConfigurationValue("graphiteEnabled")) {
+            LOGGER.log(Level.INFO, "Enabling graphite reporting");
+            final Graphite graphite = new Graphite(new InetSocketAddress("graphite", 2003));
+            final GraphiteReporter reporter = GraphiteReporter.forRegistry(Metrics.getInstance())
+                    .prefixedWith("opengrok")
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .filter(MetricFilter.ALL)
+                    .build(graphite);
+            reporter.start(1, TimeUnit.MINUTES);
+        }
+
+        /**
          * Create a new instance of authorization framework. If the code above
          * (reading the configuration) failed then the plugin directory is
          * possibly {@code null} causing the framework to allow every request.

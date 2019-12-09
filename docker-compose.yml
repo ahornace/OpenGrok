@@ -1,0 +1,29 @@
+version: '3.7'
+
+services:
+  grok:
+    build: '.'
+    environment:
+      - GRAPHITE_ENABLED=true
+      - REINDEX=true
+    ports:
+      - 8080:8080
+    volumes:
+      - '~/opengrok-src/:/opengrok/src/'
+      - '~/opengrok-etc/:/opengrok/etc/'
+      - '~/opengrok-data/:/opengrok/data'
+  graphite:
+    image: graphiteapp/graphite-statsd
+    volumes:
+      - graphite_data:/var/lib/graphite/storage/whisper
+  grafana:
+    build: './grafana'
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+volumes:
+  grafana_data:
+    driver: local
+  graphite_data:
+    driver: local
