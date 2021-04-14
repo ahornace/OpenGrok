@@ -93,6 +93,8 @@ public final class Suggester implements Closeable {
 
     private final int rebuildParallelismLevel;
 
+    private final boolean wfstEnabled;
+
     private volatile boolean rebuilding;
     private volatile boolean terminating;
     private final Lock rebuildLock = new ReentrantLock();
@@ -132,7 +134,9 @@ public final class Suggester implements Closeable {
             final Set<String> allowedFields,
             final int timeThreshold,
             final int rebuildParallelismLevel,
-            MeterRegistry registry) {
+            MeterRegistry registry,
+            boolean wfstEnabled
+    ) {
         if (suggesterDir == null) {
             throw new IllegalArgumentException("Suggester needs to have directory specified");
         }
@@ -150,6 +154,7 @@ public final class Suggester implements Closeable {
         this.allowedFields = new HashSet<>(allowedFields);
         this.timeThreshold = timeThreshold;
         this.rebuildParallelismLevel = rebuildParallelismLevel;
+        this.wfstEnabled = wfstEnabled;
 
         suggesterRebuildTimer = Timer.builder("suggester.rebuild.latency").
                 description("suggester rebuild latency").
@@ -225,7 +230,7 @@ public final class Suggester implements Closeable {
                 LOGGER.log(Level.FINE, "Initializing {0}", indexDir);
 
                 SuggesterProjectData wfst = new SuggesterProjectData(FSDirectory.open(indexDir.path),
-                        getSuggesterDir(indexDir.name), allowMostPopular, allowedFields);
+                        getSuggesterDir(indexDir.name), allowMostPopular, allowedFields, wfstEnabled);
                 wfst.init();
                 if (projectsEnabled) {
                     projectData.put(indexDir.name, wfst);
@@ -401,7 +406,7 @@ public final class Suggester implements Closeable {
         }
 
         Suggestions suggestions;
-        if (!SuggesterUtils.isComplexQuery(query, suggesterQuery)) { // use WFST for lone prefix
+        if (wfstEnabled && !SuggesterUtils.isComplexQuery(query, suggesterQuery)) {
             suggestions = prefixLookup(readers, (SuggesterPrefixQuery) suggesterQuery);
         } else {
             suggestions = complexLookup(readers, suggesterQuery, query);

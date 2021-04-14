@@ -27,27 +27,24 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.spell.LuceneDictionary;
-import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.fst.WFSTCompletionLookup;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opengrok.suggest.popular.PopularityCounter;
 import org.opengrok.suggest.popular.PopularityMap;
 import org.opengrok.suggest.popular.impl.chronicle.ChronicleMapAdapter;
 import org.opengrok.suggest.popular.impl.chronicle.ChronicleMapConfiguration;
+import org.opengrok.suggest.wfst.WFSTProjectData;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,21 +63,11 @@ import java.util.logging.Logger;
  */
 class SuggesterProjectData implements Closeable {
 
-    private static final String TMP_DIR_PROPERTY = "java.io.tmpdir";
-
     private static final Logger logger = Logger.getLogger(SuggesterProjectData.class.getName());
-
-    private static final int MAX_TERM_SIZE = Short.MAX_VALUE - 3;
-
-    private static final String WFST_TEMP_FILE_PREFIX = "opengrok_suggester_wfst";
-
-    private static final String WFST_FILE_SUFFIX = ".wfst";
 
     private static final String SEARCH_COUNT_MAP_NAME = "search_count.db";
 
     private static final String VERSION_FILE_NAME = "version.txt";
-
-    private static final int DEFAULT_WEIGHT = 0;
 
     private static final double AVERAGE_LENGTH_DEFAULT = 22;
 
@@ -88,11 +75,7 @@ class SuggesterProjectData implements Closeable {
 
     private final Path suggesterDir;
 
-    private final Map<String, WFSTCompletionLookup> lookups = new HashMap<>();
-
     private final Map<String, PopularityMap> searchCountMaps = new HashMap<>();
-
-    private final Map<String, Double> averageLengths = new HashMap<>();
 
     private final boolean allowMostPopular;
 
@@ -102,21 +85,25 @@ class SuggesterProjectData implements Closeable {
 
     private Set<String> fields;
 
-    private final Directory tempDir;
+    private final boolean wfstEnabled;
+
+    private WFSTProjectData wfstData;
 
     SuggesterProjectData(
             final Directory indexDir,
             final Path suggesterDir,
             final boolean allowMostPopular,
-            final Set<String> allowedFields
+            final Set<String> allowedFields,
+            final boolean wfstEnabled
     ) throws IOException {
         this.indexDir = indexDir;
         this.suggesterDir = suggesterDir;
         this.allowMostPopular = allowMostPopular;
         this.allowedFields = allowedFields;
-
-        tempDir = FSDirectory.open(Paths.get(System.getProperty(TMP_DIR_PROPERTY)));
-
+        this.wfstEnabled = wfstEnabled;
+        if (wfstEnabled) {
+            this.wfstData = new WFSTProjectData(suggesterDir, indexDir, this::getSearchCounts);
+        }
         initFields();
     }
 
@@ -138,6 +125,9 @@ class SuggesterProjectData implements Closeable {
             } else {
                 this.fields = new HashSet<>(allowedFields);
             }
+            if (wfstEnabled) {
+                wfstData.setFields(this.fields);
+            }
         }
     }
 
@@ -149,12 +139,11 @@ class SuggesterProjectData implements Closeable {
         lock.writeLock().lock();
         try {
             long commitVersion = getCommitVersion();
+            createSuggesterDirIfNotExists();
 
-            if (hasStoredData() && commitVersion == getDataVersion()) {
-                loadStoredWFSTs();
-            } else {
-                createSuggesterDir();
-                build();
+            if (wfstEnabled) {
+                boolean areStoredDataUpToDate = commitVersion == getDataVersion();
+                wfstData.init(areStoredDataUpToDate);
             }
 
             if (allowMostPopular) {
@@ -177,52 +166,6 @@ class SuggesterProjectData implements Closeable {
         return commit.getGeneration();
     }
 
-    private boolean hasStoredData() {
-        if (!suggesterDir.toFile().exists()) {
-            return false;
-        }
-
-        File[] children = suggesterDir.toFile().listFiles();
-        return children != null && children.length > 0;
-    }
-
-    private void loadStoredWFSTs() throws IOException {
-        try (IndexReader indexReader = DirectoryReader.open(indexDir)) {
-            for (String field : fields) {
-
-                File WFSTfile = getWFSTFile(field);
-                if (WFSTfile.exists()) {
-                    WFSTCompletionLookup WFST = loadStoredWFST(WFSTfile);
-                    lookups.put(field, WFST);
-                } else {
-                    logger.log(Level.INFO, "Missing WFST file for {0} field in {1}, creating a new one",
-                            new Object[] {field, suggesterDir});
-
-                    WFSTCompletionLookup lookup = build(indexReader, field);
-                    store(lookup, field);
-
-                    lookups.put(field, lookup);
-                }
-            }
-        }
-    }
-
-    private WFSTCompletionLookup loadStoredWFST(final File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file)) {
-            WFSTCompletionLookup lookup = createWFST();
-            lookup.load(fis);
-            return lookup;
-        }
-    }
-
-    private WFSTCompletionLookup createWFST() {
-        return new WFSTCompletionLookup(tempDir, WFST_TEMP_FILE_PREFIX);
-    }
-
-    private File getWFSTFile(final String field) {
-        return getFile(field + WFST_FILE_SUFFIX);
-    }
-
     private File getFile(final String fileName) {
         return suggesterDir.resolve(fileName).toFile();
     }
@@ -235,7 +178,9 @@ class SuggesterProjectData implements Closeable {
         lock.writeLock().lock();
         try {
             initFields();
-            build();
+            if (wfstEnabled) {
+                wfstData.build();
+            }
 
             if (allowMostPopular) {
                 initSearchCountMap();
@@ -247,39 +192,7 @@ class SuggesterProjectData implements Closeable {
         }
     }
 
-    private void build() throws IOException {
-        try (IndexReader indexReader = DirectoryReader.open(indexDir)) {
-            for (String field : fields) {
-                WFSTCompletionLookup lookup = build(indexReader, field);
-                store(lookup, field);
-
-                lookups.put(field, lookup);
-            }
-        }
-    }
-
-    private WFSTCompletionLookup build(final IndexReader indexReader, final String field) throws IOException {
-        WFSTInputIterator iterator = new WFSTInputIterator(
-                new LuceneDictionary(indexReader, field).getEntryIterator(), indexReader, field, getSearchCounts(field));
-
-        WFSTCompletionLookup lookup = createWFST();
-        lookup.build(iterator);
-
-        if (lookup.getCount() > 0) {
-            double averageLength = (double) iterator.termLengthAccumulator / lookup.getCount();
-            averageLengths.put(field, averageLength);
-        }
-
-        return lookup;
-    }
-
-    private void store(final WFSTCompletionLookup WFST, final String field) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(getWFSTFile(field))) {
-            WFST.store(fos);
-        }
-    }
-
-    private void createSuggesterDir() throws IOException {
+    private void createSuggesterDirIfNotExists() throws IOException {
         if (!suggesterDir.toFile().exists()) {
             boolean directoryCreated = suggesterDir.toFile().mkdirs();
             if (!directoryCreated) {
@@ -293,16 +206,17 @@ class SuggesterProjectData implements Closeable {
         searchCountMaps.clear();
 
         for (String field : fields) {
-            int numEntries = (int) lookups.get(field).getCount();
-            if (numEntries == 0) {
-                logger.log(Level.FINE, "Skipping creation of ChronicleMap for field " + field + " in directory "
-                        + suggesterDir + " due to zero number of entries");
+            int numEntries = getNumberOfTerms(field);
+            if (numEntries <= 0) {
+                logger.log(Level.FINE,
+                        "Skipping creation of ChronicleMap for field {0} in directory {1} due to invalid number of entries",
+                        new Object[] {field, suggesterDir});
                 continue;
             }
 
             ChronicleMapConfiguration conf = ChronicleMapConfiguration.load(suggesterDir, field);
             if (conf == null) { // it was not yet initialized
-                conf = new ChronicleMapConfiguration(numEntries, getAverageLength(field));
+                conf = new ChronicleMapConfiguration(numEntries, getAverageTermLength(field));
                 conf.save(suggesterDir, field);
             }
 
@@ -328,11 +242,11 @@ class SuggesterProjectData implements Closeable {
             }
 
             if (getCommitVersion() != getDataVersion()) {
-                removeOldTerms(m, lookups.get(field));
+                removeOldTerms(m, field);
 
-                if (conf.getEntries() < lookups.get(field).getCount()) {
-                    int newEntriesCount = (int) lookups.get(field).getCount();
-                    double newKeyAvgLength = getAverageLength(field);
+                if (conf.getEntries() < getNumberOfTerms(field)) {
+                    int newEntriesCount = getNumberOfTerms(field);
+                    double newKeyAvgLength = getAverageTermLength(field);
 
                     conf.setEntries(newEntriesCount);
                     conf.setAverageKeySize(newKeyAvgLength);
@@ -345,20 +259,64 @@ class SuggesterProjectData implements Closeable {
         }
     }
 
-    private File getChronicleMapFile(final String field) {
-        return suggesterDir.resolve(field + "_" + SEARCH_COUNT_MAP_NAME).toFile();
+    private int getNumberOfTerms(final String field) throws IOException {
+        if (wfstEnabled) {
+            return (int) wfstData.getTermCount(field);
+        } else {
+            try (IndexReader indexReader = DirectoryReader.open(indexDir)) {
+                return (int) MultiTerms.getTerms(indexReader, field).size();
+            }
+        }
     }
 
-    private double getAverageLength(final String field) {
-        if (averageLengths.containsKey(field)) {
-            return averageLengths.get(field);
+    private double getAverageTermLength(final String field) {
+        if (wfstEnabled) {
+            var optionalLength = wfstData.getAverageLength(field);
+            if (optionalLength.isPresent()) {
+                return optionalLength.get();
+            }
+        }
+        try (IndexReader indexReader = DirectoryReader.open(indexDir)) {
+            var it = new LuceneDictionary(indexReader, field).getEntryIterator();
+            long lengthAccumulator = 0;
+            int count = 0;
+            BytesRef bytesRef;
+            while ((bytesRef = it.next()) != null) {
+                lengthAccumulator += bytesRef.length;
+                count++;
+            }
+            return ((double) lengthAccumulator / count);
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "Error while computing average length for field {0}", field);
         }
         logger.log(Level.FINE, "Could not determine average length for field {0}, using default one", field);
         return AVERAGE_LENGTH_DEFAULT;
     }
 
-    private void removeOldTerms(final ChronicleMapAdapter adapter, final WFSTCompletionLookup lookup) {
-        adapter.removeIf(key -> lookup.get(key.toString()) == null);
+    private File getChronicleMapFile(final String field) {
+        return suggesterDir.resolve(field + "_" + SEARCH_COUNT_MAP_NAME).toFile();
+    }
+
+    private void removeOldTerms(final ChronicleMapAdapter adapter, final String field) {
+        if (wfstEnabled) {
+            WFSTCompletionLookup lookup = wfstData.getWfstLookup(field);
+            adapter.removeIf(key -> lookup.get(key.toString()) == null);
+        } else {
+            try (IndexReader indexReader = DirectoryReader.open(indexDir)) {
+                adapter.removeIf(key -> {
+                    try {
+                        return indexReader.docFreq(new Term(field, key)) == 0;
+                    } catch (IOException e) {
+                        logger.log(Level.WARNING, "Could not get doc frequency for field {0} in directory {1}",
+                                new Object[] {field, suggesterDir});
+                    }
+                    return true;
+                });
+            } catch (IOException e) {
+                logger.log(Level.WARNING, "Could not remove old terms for field {0} in directory {1}",
+                        new Object[] {field, suggesterDir});
+            }
+        }
     }
 
     /**
@@ -371,19 +329,14 @@ class SuggesterProjectData implements Closeable {
     public List<Lookup.LookupResult> lookup(final String field, final String prefix, final int resultSize) {
         lock.readLock().lock();
         try {
-            WFSTCompletionLookup lookup = lookups.get(field);
-            if (lookup == null) {
-                logger.log(Level.WARNING, "No WFST for field {0} in {1}", new Object[] {field, suggesterDir});
+            if (!wfstEnabled) {
+                logger.log(Level.WARNING, "Cannot perform a WFST lookup when WFST is disabled");
                 return Collections.emptyList();
             }
-            return lookup.lookup(prefix, false, resultSize);
-        } catch (IOException e) {
-            logger.log(Level.WARNING, "Could not perform lookup in {0} for {1}:{2}",
-                    new Object[] {suggesterDir, field, prefix});
+            return wfstData.lookup(field, prefix, resultSize);
         } finally {
             lock.readLock().unlock();
         }
-        return Collections.emptyList();
     }
 
     /**
@@ -445,7 +398,7 @@ class SuggesterProjectData implements Closeable {
         }
 
         try {
-            if (lookups.get(term.field()).get(term.text()) == null) {
+            if (wfstEnabled && !wfstData.hasTerm(term)) {
                 logger.log(Level.FINE, "Cannot increment search count for unknown term {0} in {1}",
                         new Object[]{term, suggesterDir});
                 return false; // unknown term
@@ -492,8 +445,9 @@ class SuggesterProjectData implements Closeable {
                 }
             });
             indexDir.close();
-
-            tempDir.close();
+            if (wfstEnabled) {
+                wfstData.close();
+            }
         } finally {
             lock.writeLock().unlock();
         }
@@ -566,84 +520,6 @@ class SuggesterProjectData implements Closeable {
                 ", suggesterDir=" + suggesterDir +
                 ", allowMostPopular=" + allowMostPopular +
                 '}';
-    }
-
-    /**
-     * An {@link InputIterator} for WFST data structure with most popular completion support.
-     */
-    private static class WFSTInputIterator implements InputIterator {
-
-        private final InputIterator wrapped;
-
-        private final IndexReader indexReader;
-
-        private final String field;
-
-        private long termLengthAccumulator = 0;
-
-        private final PopularityCounter searchCounts;
-
-        WFSTInputIterator(
-                final InputIterator wrapped,
-                final IndexReader indexReader,
-                final String field,
-                final PopularityCounter searchCounts
-        ) {
-            this.wrapped = wrapped;
-            this.indexReader = indexReader;
-            this.field = field;
-            this.searchCounts = searchCounts;
-        }
-
-        private BytesRef last;
-
-        @Override
-        public long weight() {
-            if (last != null) {
-                int add = searchCounts.get(last);
-
-                return SuggesterUtils.computeScore(indexReader, field, last)
-                        + add * SuggesterSearcher.TERM_ALREADY_SEARCHED_MULTIPLIER;
-            }
-
-            return DEFAULT_WEIGHT;
-        }
-
-        @Override
-        public BytesRef payload() {
-            return wrapped.payload();
-        }
-
-        @Override
-        public boolean hasPayloads() {
-            return wrapped.hasPayloads();
-        }
-
-        @Override
-        public Set<BytesRef> contexts() {
-            return wrapped.contexts();
-        }
-
-        @Override
-        public boolean hasContexts() {
-            return wrapped.hasContexts();
-        }
-
-        @Override
-        public BytesRef next() throws IOException {
-            last = wrapped.next();
-
-            // skip very large terms because of the buffer exception
-            while (last != null && last.length > MAX_TERM_SIZE) {
-                last = wrapped.next();
-            }
-
-            if (last != null) {
-                termLengthAccumulator += last.length;
-            }
-
-            return last;
-        }
     }
 
 }

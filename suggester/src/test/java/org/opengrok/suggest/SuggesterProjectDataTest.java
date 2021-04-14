@@ -97,7 +97,7 @@ public class SuggesterProjectDataTest {
     }
 
     private void init(boolean allowMostPopular) throws IOException {
-        data = new SuggesterProjectData(dir, tempDir, allowMostPopular, Collections.singleton(FIELD));
+        data = new SuggesterProjectData(dir, tempDir, allowMostPopular, Collections.singleton(FIELD), true);
         data.init();
     }
 
@@ -275,7 +275,7 @@ public class SuggesterProjectDataTest {
             iw.addDocument(doc);
         }
 
-        SuggesterProjectData data = new SuggesterProjectData(dir, tempDir, false, Collections.singleton("test"));
+        SuggesterProjectData data = new SuggesterProjectData(dir, tempDir, false, Collections.singleton("test"), true);
         data.init();
         data.remove();
 
@@ -285,7 +285,7 @@ public class SuggesterProjectDataTest {
     @Test
     public void testUnknownFieldIgnored() throws IOException {
         addText(FIELD, "term");
-        data = new SuggesterProjectData(dir, tempDir, false, new HashSet<>(Arrays.asList(FIELD, "unknown")));
+        data = new SuggesterProjectData(dir, tempDir, false, new HashSet<>(Arrays.asList(FIELD, "unknown")), true);
         data.init();
 
         List<Lookup.LookupResult> res = data.lookup("unknown", "a", 10);
@@ -326,6 +326,16 @@ public class SuggesterProjectDataTest {
         data.rebuild();
 
         assertFalse(getSuggestions(FIELD, "t", 10).isEmpty());
+    }
+
+    @Test
+    void testEmptySuggestionsWhenWfstDisabled() throws IOException {
+        addText(FIELD, "test1 test2");
+
+        data = new SuggesterProjectData(dir, tempDir, true, Collections.singleton(FIELD), false);
+        data.init();
+
+        assertTrue(data.lookup(FIELD, "t", 2).isEmpty());
     }
 
 }

@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 /**
  * Variation of {@link IndexSearcher} but instead of returning the relevant documents can return also suggestions.
  */
-class SuggesterSearcher extends IndexSearcher {
+public class SuggesterSearcher extends IndexSearcher {
 
     public static final int TERM_ALREADY_SEARCHED_MULTIPLIER = 100;
 

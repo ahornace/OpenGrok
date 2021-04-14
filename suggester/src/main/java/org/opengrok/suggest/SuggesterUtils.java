@@ -91,7 +91,7 @@ public class SuggesterUtils {
      * @param bytesRef term text
      * @return score for the term
      */
-    static long computeScore(final IndexReader indexReader, final String field, final BytesRef bytesRef) {
+    public static long computeScore(final IndexReader indexReader, final String field, final BytesRef bytesRef) {
         try {
             Term term = new Term(field, bytesRef);
             double normalizedDocumentFrequency = computeNormalizedDocumentFrequency(indexReader, term);

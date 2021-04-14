@@ -40,6 +40,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.opengrok.suggest.query.SuggesterPrefixQuery;
 import org.opengrok.suggest.query.SuggesterWildcardQuery;
 
@@ -103,7 +105,8 @@ public class SuggesterTest {
     @Test
     public void testNullSuggesterDir() {
         assertThrows(IllegalArgumentException.class,
-                () -> new Suggester(null, 10, Duration.ofMinutes(5), false, true, null, Integer.MAX_VALUE, 1, registry));
+                () -> new Suggester(null, 10, Duration.ofMinutes(5), false, true, null, Integer.MAX_VALUE,
+                        1, registry, true));
     }
 
     @Test
@@ -111,7 +114,8 @@ public class SuggesterTest {
         assertThrows(IllegalArgumentException.class, () -> {
             Path tempFile = Files.createTempFile("opengrok", "test");
             try {
-                new Suggester(tempFile.toFile(), 10, null, false, true, null, Integer.MAX_VALUE, 1, registry);
+                new Suggester(tempFile.toFile(), 10, null, false, true, null, Integer.MAX_VALUE,
+                        1, registry, true);
             } finally {
                 tempFile.toFile().delete();
             }
@@ -123,14 +127,15 @@ public class SuggesterTest {
         assertThrows(IllegalArgumentException.class, () -> {
             Path tempFile = Files.createTempFile("opengrok", "test");
             try {
-                new Suggester(tempFile.toFile(), 10, Duration.ofMinutes(-4), false, true, null, Integer.MAX_VALUE, 1, registry);
+                new Suggester(tempFile.toFile(), 10, Duration.ofMinutes(-4), false, true, null, Integer.MAX_VALUE,
+                        1, registry, true);
             } finally {
                 tempFile.toFile().delete();
             }
         });
     }
 
-    private SuggesterTestData initSuggester() throws IOException {
+    private SuggesterTestData initSuggester(final boolean wfstEnabled) throws IOException {
         Path tempIndexDir = Files.createTempDirectory("opengrok");
         Directory dir = FSDirectory.open(tempIndexDir);
 
@@ -141,7 +146,8 @@ public class SuggesterTest {
         Path tempSuggesterDir = Files.createTempDirectory("opengrok");
 
         Suggester s = new Suggester(tempSuggesterDir.toFile(), 10, Duration.ofMinutes(1), true,
-                true, Collections.singleton("test"), Integer.MAX_VALUE, Runtime.getRuntime().availableProcessors(), registry);
+                true, Collections.singleton("test"), Integer.MAX_VALUE, Runtime.getRuntime().availableProcessors(),
+                registry, wfstEnabled);
 
         s.init(Collections.singleton(new Suggester.NamedIndexDir("test", tempIndexDir)));
 
@@ -171,9 +177,10 @@ public class SuggesterTest {
         return ((Map) f2.get(suggester)).size();
     }
 
-    @Test
-    public void testSimpleSuggestions() throws IOException {
-        SuggesterTestData t = initSuggester();
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testSimpleSuggestions(final boolean wfstEnabled) throws IOException {
+        SuggesterTestData t = initSuggester(wfstEnabled);
 
         Suggester.NamedIndexReader ir = t.getNamedIndexReader();
 
@@ -188,7 +195,7 @@ public class SuggesterTest {
 
     @Test
     public void testRefresh() throws IOException {
-        SuggesterTestData t = initSuggester();
+        SuggesterTestData t = initSuggester(true);
 
         addText(t.getIndexDirectory(), "a1 a2");
 
@@ -207,7 +214,7 @@ public class SuggesterTest {
 
     @Test
     public void testIndexChangedWhileOffline() throws IOException {
-        SuggesterTestData t = initSuggester();
+        SuggesterTestData t = initSuggester(true);
 
         t.s.close();
 
@@ -215,7 +222,7 @@ public class SuggesterTest {
 
         t.s = new Suggester(t.suggesterDir.toFile(), 10, Duration.ofMinutes(1), false,
                 true, Collections.singleton("test"), Integer.MAX_VALUE,
-                Runtime.getRuntime().availableProcessors(), registry);
+                Runtime.getRuntime().availableProcessors(), registry, true);
 
         t.s.init(Collections.singleton(t.getNamedIndexDir()));
 
@@ -234,7 +241,7 @@ public class SuggesterTest {
 
     @Test
     public void testRemove() throws IOException {
-        SuggesterTestData t = initSuggester();
+        SuggesterTestData t = initSuggester(true);
 
         t.s.remove(Collections.singleton("test"));
 
@@ -244,9 +251,10 @@ public class SuggesterTest {
         FileUtils.deleteDirectory(t.indexDir.toFile());
     }
 
-    @Test
-    public void testComplexQuerySearch() throws IOException {
-        SuggesterTestData t = initSuggester();
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testComplexQuerySearch(final boolean wfstEnabled) throws IOException {
+        SuggesterTestData t = initSuggester(wfstEnabled);
 
         List<LookupResultItem> res = t.s.search(Collections.singletonList(t.getNamedIndexReader()),
                 new SuggesterWildcardQuery(new Term("test", "*1")), null).getItems();
@@ -257,10 +265,11 @@ public class SuggesterTest {
         t.close();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     @SuppressWarnings("unchecked") // for contains()
-    public void testOnSearch() throws IOException {
-        SuggesterTestData t = initSuggester();
+    void testOnSearch(final boolean wfstEnabled) throws IOException {
+        SuggesterTestData t = initSuggester(wfstEnabled);
 
         Query q = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term("test", "term1")), BooleanClause.Occur.MUST)
@@ -277,19 +286,21 @@ public class SuggesterTest {
         t.close();
     }
 
-    @Test
-    public void testGetSearchCountsForUnknown() throws IOException {
-        SuggesterTestData t = initSuggester();
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testGetSearchCountsForUnknown(final boolean wfstEnabled) throws IOException {
+        SuggesterTestData t = initSuggester(wfstEnabled);
 
         assertTrue(t.s.getSearchCounts("unknown", "unknown", 0, 10).isEmpty());
 
         t.close();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     @SuppressWarnings("unchecked") // for contains()
-    public void testIncreaseSearchCount() throws IOException {
-        SuggesterTestData t = initSuggester();
+    void testIncreaseSearchCount(final boolean wfstEnabled) throws IOException {
+        SuggesterTestData t = initSuggester(wfstEnabled);
 
         t.s.increaseSearchCount("test", new Term("test", "term2"), 100, true);
 

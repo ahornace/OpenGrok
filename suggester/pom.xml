@@ -85,6 +85,11 @@ Portions Copyright (c) 2020, Chris Fraire <cfraire@me.com>.
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>net.openhft</groupId>

@@ -51,6 +51,7 @@ public class SuggesterConfig {
     public static final int BUILD_TERMINATION_TIME_DEFAULT = 1800; // half an hour should be enough
     public static final int TIME_THRESHOLD_DEFAULT = 2000; // 2 sec
     public static final int REBUILD_THREAD_POOL_PERCENT_NCPUS_DEFAULT = 80;
+    public static final boolean WFST_ENABLED_DEFAULT = true;
 
     public static final Set<String> allowedProjectsDefault = null;
     public static final Set<String> allowedFieldsDefault = Set.of(
@@ -141,6 +142,17 @@ public class SuggesterConfig {
      */
     private int rebuildThreadPoolSizeInNcpuPercent;
 
+    /**
+     * Specifies if suggester should use WFST data structure for simple prefix suggestions or use lucene search
+     * instead.
+     *
+     * Recommended to use if WFST data structures are causing high load on the system
+     * (memory consumption, long rebuilt, etc.).
+     *
+     * Optionally specify {@link #maxProjects} and {@link #minChars} for better performance.
+     */
+    private boolean wfstEnabled;
+
     public SuggesterConfig() {
         setEnabled(ENABLED_DEFAULT);
         setMaxResults(MAX_RESULTS_DEFAULT);
@@ -157,6 +169,7 @@ public class SuggesterConfig {
         setRebuildCronConfig(REBUILD_CRON_CONFIG_DEFAULT);
         setBuildTerminationTime(BUILD_TERMINATION_TIME_DEFAULT);
         setRebuildThreadPoolSizeInNcpuPercent(REBUILD_THREAD_POOL_PERCENT_NCPUS_DEFAULT);
+        setWfstEnabled(WFST_ENABLED_DEFAULT);
     }
 
     public boolean isEnabled() {
@@ -302,6 +315,14 @@ public class SuggesterConfig {
         return rebuildThreadPoolSizeInNcpuPercent;
     }
 
+    public boolean isWfstEnabled() {
+        return wfstEnabled;
+    }
+
+    public void setWfstEnabled(final boolean wfstEnabled) {
+        this.wfstEnabled = wfstEnabled;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -321,17 +342,19 @@ public class SuggesterConfig {
                 showProjects == that.showProjects &&
                 showTime == that.showTime &&
                 buildTerminationTime == that.buildTerminationTime &&
+                timeThreshold == that.timeThreshold &&
+                rebuildThreadPoolSizeInNcpuPercent == that.rebuildThreadPoolSizeInNcpuPercent &&
+                wfstEnabled == that.wfstEnabled &&
                 Objects.equals(allowedProjects, that.allowedProjects) &&
                 Objects.equals(allowedFields, that.allowedFields) &&
-                Objects.equals(rebuildCronConfig, that.rebuildCronConfig) &&
-                rebuildThreadPoolSizeInNcpuPercent == that.rebuildThreadPoolSizeInNcpuPercent;
+                Objects.equals(rebuildCronConfig, that.rebuildCronConfig);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(enabled, maxResults, minChars, allowedProjects, maxProjects, allowedFields,
                 allowComplexQueries, allowMostPopular, showScores, showProjects, showTime, rebuildCronConfig,
-                buildTerminationTime, rebuildThreadPoolSizeInNcpuPercent);
+                buildTerminationTime, timeThreshold, rebuildThreadPoolSizeInNcpuPercent, wfstEnabled);
     }
 
     /**
@@ -358,8 +381,8 @@ public class SuggesterConfig {
         return res;
     }
 
-    private static HashSet<String> getAllowedFieldsForHelp(Set<String> allowedFields) {
-        HashSet<String> res = new HashSet<>(allowedFields);
+    private static Set<String> getAllowedFieldsForHelp(Set<String> allowedFields) {
+        Set<String> res = new HashSet<>(allowedFields);
         res.remove(QueryBuilder.FULL);
         return res;
     }
